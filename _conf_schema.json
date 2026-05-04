@@ -1,0 +1,82 @@
+{
+  "enabled": {
+    "description": "是否启用软白名单",
+    "type": "bool",
+    "default": true
+  },
+  "allow_self": {
+    "description": "是否放行Bot自身消息",
+    "type": "bool",
+    "default": true
+  },
+  "allow_bot_admins": {
+    "description": "是否放行AstrBot主配置中的admins_id",
+    "type": "bool",
+    "default": true
+  },
+  "allow_group_admins": {
+    "description": "群聊中是否默认放行群主和管理员",
+    "type": "bool",
+    "default": true
+  },
+  "group_enabled": {
+    "description": "是否启用群聊白名单",
+    "type": "bool",
+    "default": true
+  },
+  "group_whitelist": {
+    "description": "允许通过的群号列表",
+    "type": "list",
+    "default": []
+  },
+  "group_user_whitelist": {
+    "description": "允许通过的群成员QQ列表",
+    "type": "list",
+    "default": []
+  },
+  "friend_enabled": {
+    "description": "是否启用好友私聊白名单",
+    "type": "bool",
+    "default": true
+  },
+  "friend_whitelist": {
+    "description": "允许通过的好友QQ列表",
+    "type": "list",
+    "default": []
+  },
+  "friend_block_auto_reply": {
+    "description": "非白名单好友私聊是否自动回复",
+    "type": "bool",
+    "default": false
+  },
+  "friend_block_reply_text": {
+    "description": "非白名单好友私聊自动回复内容",
+    "type": "string",
+    "default": "你暂时不在我的白名单里，先别急着找我哦"
+  },
+  "temp_enabled": {
+    "description": "是否启用临时会话白名单",
+    "type": "bool",
+    "default": true
+  },
+  "temp_user_whitelist": {
+    "description": "允许通过的临时会话用户QQ列表",
+    "type": "list",
+    "default": []
+  },
+  "temp_group_whitelist": {
+    "description": "允许通过的临时会话来源群号列表",
+    "type": "list",
+    "default": []
+  },
+  "temp_block_auto_reply": {
+    "description": "非白名单临时会话是否自动回复",
+    "type": "bool",
+    "default": false
+  },
+  "temp_block_reply_text": {
+    "description": "非白名单临时会话自动回复内容",
+    "type": "string",
+    "default": "你暂时不在我的白名单里，可以先走审批哦"
+  }
+}
