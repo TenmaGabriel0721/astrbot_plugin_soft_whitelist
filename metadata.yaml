@@ -2,6 +2,6 @@ name: astrbot_plugin_soft_whitelist
 display_name: 软白名单
 desc: 高优先级消息白名单，只拦 message，不拦 request、notice 和 meta_event，支持群/好友/临时会话分离配置
 help: 无
-version: v1.3.1
+version: v1.4.0
 author: TenmaGabriel0721
-repo: local
+repo: https://github.com/TenmaGabriel0721/astrbot_plugin_soft_whitelist

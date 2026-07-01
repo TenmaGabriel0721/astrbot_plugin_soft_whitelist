@@ -15,9 +15,9 @@ from astrbot.core.star.filter.platform_adapter_type import PlatformAdapterType
 
 @register(
     "astrbot_plugin_soft_whitelist",
-    "gabriel",
+    "TenmaGabriel0721",
     "只拦截 message 的高优先级软白名单插件，不处理 request、notice 和 meta_event",
-    "v1.3.1",
+    "v1.4.0",
     "local",
 )
 class SoftWhitelist(Star):
@@ -39,6 +39,9 @@ class SoftWhitelist(Star):
     def _list_cfg(self, key: str) -> list[str]:
         return [str(x) for x in self._cfg(key, [])]
 
+    def _replace_list_cfg(self, key: str, value: list[str]):
+        self._set_cfg(key, value)
+
     def _add_to_list_cfg(self, key: str, value: str) -> tuple[bool, list[str]]:
         data = self._list_cfg(key)
         if value in data:
@@ -54,6 +57,47 @@ class SoftWhitelist(Star):
         data.remove(value)
         self._set_cfg(key, data)
         return True, data
+
+    async def _get_joined_group_ids(self, event: AiocqhttpMessageEvent) -> set[str]:
+        bot = getattr(event, "bot", None)
+        if bot is None or not hasattr(bot, "get_group_list"):
+            raise RuntimeError("当前平台不支持获取群列表")
+
+        group_list = await bot.get_group_list()
+        if isinstance(group_list, dict):
+            group_list = group_list.get("data", [])
+        if not isinstance(group_list, list):
+            raise RuntimeError("获取群列表返回了无法识别的数据")
+
+        joined_group_ids: set[str] = set()
+        for group in group_list:
+            if not isinstance(group, dict):
+                continue
+            group_id = group.get("group_id")
+            if group_id is not None:
+                joined_group_ids.add(str(group_id))
+        return joined_group_ids
+
+    def _prune_group_cfg(
+        self,
+        key: str,
+        joined_group_ids: set[str],
+    ) -> tuple[list[str], list[str]]:
+        before = self._list_cfg(key)
+        after = [group_id for group_id in before if group_id in joined_group_ids]
+        removed = [group_id for group_id in before if group_id not in joined_group_ids]
+        if removed:
+            self._replace_list_cfg(key, after)
+        return removed, after
+
+    def _format_removed_ids(self, ids: list[str]) -> str:
+        if not ids:
+            return "无"
+        max_show = 30
+        shown = ", ".join(ids[:max_show])
+        if len(ids) > max_show:
+            shown += f" 等 {len(ids)} 个"
+        return shown
 
     def _load_auto_reply_state(self) -> dict:
         try:
@@ -248,11 +292,13 @@ class SoftWhitelist(Star):
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("软白名单状态", alias={"白名单状态"})
     async def white_status(self, event: AiocqhttpMessageEvent):
+        """查看软白名单开关、白名单列表和自动回复配置。"""
         yield event.plain_result(self._format_status())
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("加群白")
     async def add_group_white(self, event: AiocqhttpMessageEvent, target: str = ""):
+        """加群白 <群号>，将指定群聊加入群聊白名单。"""
         target = str(target).strip()
         if not target:
             yield event.plain_result("用法: ~加群白 群号")
@@ -266,6 +312,7 @@ class SoftWhitelist(Star):
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("删群白")
     async def del_group_white(self, event: AiocqhttpMessageEvent, target: str = ""):
+        """删群白 <群号>，将指定群聊移出群聊白名单。"""
         target = str(target).strip()
         if not target:
             yield event.plain_result("用法: ~删群白 群号")
@@ -279,6 +326,7 @@ class SoftWhitelist(Star):
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("加群员白")
     async def add_group_user_white(self, event: AiocqhttpMessageEvent, target: str = ""):
+        """加群员白 <QQ号>，将指定 QQ 加入群聊成员白名单。"""
         target = str(target).strip()
         if not target:
             yield event.plain_result("用法: ~加群员白 QQ号")
@@ -292,6 +340,7 @@ class SoftWhitelist(Star):
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("删群员白")
     async def del_group_user_white(self, event: AiocqhttpMessageEvent, target: str = ""):
+        """删群员白 <QQ号>，将指定 QQ 移出群聊成员白名单。"""
         target = str(target).strip()
         if not target:
             yield event.plain_result("用法: ~删群员白 QQ号")
@@ -305,6 +354,7 @@ class SoftWhitelist(Star):
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("加好友白")
     async def add_friend_white(self, event: AiocqhttpMessageEvent, target: str = ""):
+        """加好友白 <QQ号>，将指定 QQ 加入好友私聊白名单。"""
         target = str(target).strip()
         if not target:
             yield event.plain_result("用法: ~加好友白 QQ号")
@@ -318,6 +368,7 @@ class SoftWhitelist(Star):
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("删好友白")
     async def del_friend_white(self, event: AiocqhttpMessageEvent, target: str = ""):
+        """删好友白 <QQ号>，将指定 QQ 移出好友私聊白名单。"""
         target = str(target).strip()
         if not target:
             yield event.plain_result("用法: ~删好友白 QQ号")
@@ -330,7 +381,13 @@ class SoftWhitelist(Star):
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("加临时白")
-    async def add_temp_white(self, event: AiocqhttpMessageEvent, kind: str = "", target: str = ""):
+    async def add_temp_white(
+        self,
+        event: AiocqhttpMessageEvent,
+        kind: str = "",
+        target: str = "",
+    ):
+        """加临时白 <用户|群> <QQ号|群号>，加入临时会话用户或来源群白名单。"""
         kind = str(kind).strip()
         target = str(target).strip()
         if kind not in {"用户", "群"} or not target:
@@ -345,7 +402,13 @@ class SoftWhitelist(Star):
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("删临时白")
-    async def del_temp_white(self, event: AiocqhttpMessageEvent, kind: str = "", target: str = ""):
+    async def del_temp_white(
+        self,
+        event: AiocqhttpMessageEvent,
+        kind: str = "",
+        target: str = "",
+    ):
+        """删临时白 <用户|群> <QQ号|群号>，移出临时会话用户或来源群白名单。"""
         kind = str(kind).strip()
         target = str(target).strip()
         if kind not in {"用户", "群"} or not target:
@@ -360,7 +423,13 @@ class SoftWhitelist(Star):
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("好友白回复")
-    async def set_friend_reply(self, event: AiocqhttpMessageEvent, mode: str = "", text: str = ""):
+    async def set_friend_reply(
+        self,
+        event: AiocqhttpMessageEvent,
+        mode: str = "",
+        text: str = "",
+    ):
+        """好友白回复 <开|关|设定> [回复内容]，管理好友非白名单自动回复。"""
         mode = str(mode).strip()
         text = str(text).strip()
         if mode in {"开", "关"}:
@@ -378,7 +447,13 @@ class SoftWhitelist(Star):
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("临时白回复")
-    async def set_temp_reply(self, event: AiocqhttpMessageEvent, mode: str = "", text: str = ""):
+    async def set_temp_reply(
+        self,
+        event: AiocqhttpMessageEvent,
+        mode: str = "",
+        text: str = "",
+    ):
+        """临时白回复 <开|关|设定> [回复内容]，管理临时会话非白名单自动回复。"""
         mode = str(mode).strip()
         text = str(text).strip()
         if mode in {"开", "关"}:
@@ -393,6 +468,51 @@ class SoftWhitelist(Star):
             yield event.plain_result(f"临时会话非白名单自动回复内容已更新:\n{text}")
             return
         yield event.plain_result("用法: ~临时白回复 开|关  或  ~临时白回复 设定 回复内容")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.platform_adapter_type(PlatformAdapterType.AIOCQHTTP)
+    @filter.command("清理退群白", alias={"剔除退群白", "清理群白"})
+    async def prune_left_group_white(self, event: AiocqhttpMessageEvent, mode: str = ""):
+        """清理退群白 [强制]，剔除群聊白名单和临时来源群白名单中 Bot 已退出的群。"""
+        try:
+            mode = str(mode).strip()
+            joined_group_ids = await self._get_joined_group_ids(event)
+            group_whitelist = self._list_cfg("group_whitelist")
+            temp_group_whitelist = self._list_cfg("temp_group_whitelist")
+            tracked_group_count = len(group_whitelist) + len(temp_group_whitelist)
+            if not joined_group_ids and tracked_group_count and mode != "强制":
+                yield event.plain_result(
+                    "清理已取消: 当前平台返回的Bot加入群数为0，但本地仍有群白名单记录。\n"
+                    "这可能是适配器接口异常或缓存未就绪。确认Bot确实不在任何群后，可使用: ~清理退群白 强制"
+                )
+                return
+            removed_group, after_group = self._prune_group_cfg(
+                "group_whitelist",
+                joined_group_ids,
+            )
+            removed_temp, after_temp = self._prune_group_cfg(
+                "temp_group_whitelist",
+                joined_group_ids,
+            )
+        except Exception as e:
+            logger.error(f"[soft_whitelist] 清理已退群聊失败: {e}", exc_info=True)
+            yield event.plain_result(f"清理失败: {e}")
+            return
+
+        total_removed = len(removed_group) + len(removed_temp)
+        lines = [
+            "【退群白名单清理】",
+            f"当前Bot加入群数: {len(joined_group_ids)}",
+            f"已剔除群白名单: {len(removed_group)} 个",
+            f"- {self._format_removed_ids(removed_group)}",
+            f"已剔除临时来源群白名单: {len(removed_temp)} 个",
+            f"- {self._format_removed_ids(removed_temp)}",
+            f"剩余群白名单: {len(after_group)} 个",
+            f"剩余临时来源群白名单: {len(after_temp)} 个",
+        ]
+        if total_removed == 0:
+            lines.append("未发现已退群聊。")
+        yield event.plain_result("\n".join(lines))
 
     @filter.platform_adapter_type(PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.ALL, priority=100000)
